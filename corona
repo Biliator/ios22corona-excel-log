@@ -1,0 +1,507 @@
+#!/usr/bin/bash
+
+export POSIXLY_CORRECT=yes
+
+print_help()
+{
+    echo ""
+    echo "Usage: corona [-h] [FILTERS] [COMMAND] [LOG [LOG2 [...]]"
+    echo "Show stats of people infected by COVID-19"
+    echo ""
+    echo "[FILTERS] = [filter] [argument]"
+    echo "Can be combine"
+    echo ""
+    echo "-a DATETIME       print data after DATETIME where DATETIME is YYYY-MM-DD"
+    echo "-b DATETIME       print data before DATETIME where DATETIME is YYYY-MM-DD"
+    echo "-g GENDER         print data of specific GENDER where GENDER is either 'M' - men, or 'Z' - women"
+    echo "-s WIDTH          print data in graph where WIDTH is width of the biggest chunk of data."
+    echo "                  Graph is represented with #"
+    echo "-h                show help"
+    echo ""
+    echo "[COMMAND] = [command]"
+    echo "Can not be combine (only one)"
+    echo ""
+    echo "infected          print number of infecter"
+    echo "merge             merge two files and print them as one"
+    echo "gender            print number of infected men and women"
+    echo "age               print data of infected in age cathegory"
+    echo "daily             print number of infected everyday"
+    echo "monthly           print number of infected month"
+    echo "yearly            print number of infected year"
+    echo "countries         print number of infected in all countries"
+    echo "districts         print number of infected in all districts"
+    echo "regions           print number of infected in all reagions"
+    echo ""
+    exit 0
+}
+
+cmd_infected()
+{
+    choose_collumn 1
+    i=1
+    while [ $i -lt $LEN_C ]; do
+        ((i++))
+    done
+    ((LINE=LINE+i-1))
+    if [ $PRINT ]; then
+        echo "$LINE"
+    fi
+}
+
+cmd_merge()
+{
+    if [ "$PRINT_H" == "" ]; then
+        PRINT_H="printed"
+        echo "$HEADER"
+    fi
+
+    if [ "${FILE: -3}" == ".gz" ]; then
+        gzip -dkc $FILE | tail -n +2
+    elif [ "${FILE: -4}" == ".bz2" ]; then
+        bzip2 -dkc $FILE |  tail -n +2
+    else
+        cat $FILE | tail -n +2
+    fi
+}
+
+cmd_gender()
+{
+    choose_collumn 4
+    i=1
+    while [ $i -lt $LEN_C ]; do
+        if [ "${COLLUMN[$i]}" == "M" ]
+        then
+            ((M++))
+        else
+            ((Z++))
+        fi
+        ((i++))
+    done
+
+    if [ $PRINT ]; then
+        if [ "$ARG_S" == "true" ]; then
+            if [ "$WIDTH" ]; then 
+                if [ $M -gt $Z ]; then
+                    ((WIDTH_GENDER = M / WIDTH))
+                    echo $div
+                else
+                    ((WIDTH_GENDER = Z / WIDTH))
+                    echo $div
+                fi
+                if [ $WIDTH_GENDER -eq 0 ]; then
+                    WIDTH_GENDER=1
+                fi
+            fi
+            while [ $M -ge $WIDTH_GENDER ]; do
+                HASHES+=\#
+                ((M-=WIDTH_GENDER))
+            done
+            echo M: $HASHES
+            HASHES=""
+            while [ $Z -ge $WIDTH_GENDER ]; do
+                HASHES+=\#
+                ((Z-=WIDTH_GENDER))
+            done
+            echo Z: $HASHES
+        else
+            echo "M: $M"
+            echo "Z: $Z"
+        fi
+    fi
+}
+
+cmd_age()
+{
+    choose_collumn 3
+    i=1
+    while [ $i -lt $LEN_C ]; do
+            AGE="${COLLUMN[i]}"
+            if ((AGE<=5)); then
+                ((A[0]++))
+            elif ((AGE<=15)); then
+                ((A[1]++))
+            elif ((AGE<=25)); then
+                ((A[2]++))
+            elif ((AGE<=35)); then
+                ((A[3]++))
+            elif ((AGE<=45)); then
+                ((A[4]++))
+            elif ((AGE<=55)); then
+                ((A[5]++))
+            elif ((AGE<=65)); then
+                ((A[6]++))
+            elif ((AGE<=75)); then
+                ((A[7]++))
+            elif ((AGE<=85)); then
+                ((A[8]++)) 
+            elif ((AGE<=95)); then
+                ((A[9]++))
+            elif ((AGE<=105)); then
+                ((A[10]++))
+            else
+                ((A[11]++))
+            fi
+            ((i++))
+    done
+
+    if [ $PRINT ]; then
+        if [ "$ARG_S" == "true" ]; then
+            if [ "$WIDTH" ]; then 
+                HIGHEST_I=0
+                i=1
+                while [ $i -lt 12 ]; do
+                    if [[ ${A[$i]} -gt ${A[$HIGHEST_I]} ]]; then
+                            HIGHEST_I=$i
+                    fi
+                    ((i++))
+                done
+                ((WIDTH_AGE = A[$HIGHEST_I] / WIDTH))
+
+                if [ $WIDTH_AGE -eq 0 ];then
+                    WIDTH_AGE=1
+                fi
+            fi
+
+            i=0
+            while [ $i -lt 12 ]; do
+                while [[ ${A[$i]} -ge $WIDTH_AGE ]]; do
+                    HASHES+=\#
+                    ((A[$i]-=WIDTH_AGE))
+                done
+                case "$i" in
+                    0)
+                        echo "0-5   : $HASHES"
+                    ;;
+                    1)
+                        echo "6-15  : $HASHES"
+                    ;;
+                    2)
+                        echo "16-25 : $HASHES"
+                    ;;
+                    3)
+                        echo "26-35 : $HASHES"
+                    ;;
+                    4)
+                        echo "36-45 : $HASHES"
+                    ;;
+                    5)
+                        echo "46-55 : $HASHES"
+                    ;;
+                    6)
+                        echo "56-65 : $HASHES"
+                    ;;
+                    7)
+                        echo "66-75 : $HASHES"
+                    ;;
+                    8)
+                        echo "76-85 : $HASHES"
+                    ;;
+                    9)
+                        echo "86-95 : $HASHES"
+                    ;;
+                    10)
+                        echo "96-105: $HASHES"
+                    ;;
+                    11)
+                        echo ">105  : $HASHES"
+                    ;;
+                esac
+                ((i++))
+                HASHES=""
+            done
+        else
+            echo "0-5   : $((A[0]))"
+            echo "6-15  : $((A[1]))"
+            echo "16-25 : $((A[2]))"
+            echo "26-35 : $((A[3]))"
+            echo "36-45 : $((A[4]))"
+            echo "46-55 : $((A[5]))"
+            echo "56-65 : $((A[6]))"
+            echo "66-75 : $((A[7]))"
+            echo "76-85 : $((A[8]))"
+            echo "86-95 : $((A[9]))"
+            echo "96-105: $((A[10]))"
+            echo ">105  : $((A[11]))"
+        fi
+    fi
+}
+
+cmd_daily()
+{    
+    WIDTH_DATES=WIDTH_DAILY
+    choose_collumn 2
+    count_date 0
+}
+
+cmd_monthly()
+{
+    WIDTH_DATES=WIDTH_MONTHLY
+    choose_collumn 2
+    count_date 4
+}
+
+cmd_yearly()
+{    
+    WIDTH_DATES=WIDTH_YEARLY
+    choose_collumn 2
+    count_date 7
+}
+
+cmd_countries()
+{
+    WIDTH_LOCATIONS=WIDTH_COUNTRIES
+    choose_collumn 8
+    count_place 8
+}
+
+cmd_districts()
+{
+    WIDTH_LOCATIONS=WIDTH_DISTRICTS
+    choose_collumn 5
+    count_place 5
+}
+
+cmd_regions()
+{
+    WIDTH_LOCATIONS=WIDTH_REGIONS
+    choose_collumn 6
+    count_place 6
+}
+
+count_date()
+{
+    i=1
+    while [ $i -lt $LEN_C ]; do
+        COLLUMN[$i]=$(echo "${COLLUMN[i]}" | head -c-$1)
+        let i++
+    done
+
+    SORTED+=($(echo "${COLLUMN[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+
+    LEN_S=${#SORTED[@]}
+    i=1
+
+    while [ $i -lt $LEN_C ]; do
+        j=0
+        while [ $j -lt $LEN_S ]; do
+            if [ "${COLLUMN[$i]}" == "${SORTED[$j]}" ]
+            then
+                    ((COUNT[$j]++))
+            fi
+            let j++
+        done
+        let i++
+    done
+
+    if [ $PRINT ]; then
+        if [ "$ARG_S" == "true" ]; then
+            if [ "$WIDTH" ]; then
+                HIGHEST_I=0
+                i=1
+                while [ ${COUNT[$i]} ]; do
+                    if [[ ${COUNT[$i]} -gt ${COUNT[$HIGHEST_I]} ]]; then
+                        HIGHEST_I=$i
+                    fi
+                    ((i++))
+                done
+                ((WIDTH_DATES = COUNT[$HIGHEST_I] / WIDTH))
+                if [ $WIDTH_DATES -eq 0 ]; then
+                    WIDTH_DATES=1
+                fi
+            fi
+
+            i=0
+            while [ ${SORTED[$i]} ]; do
+                while [[ ${COUNT[$i]} -ge $WIDTH_DATES ]]; do
+                    HASHES+=\#
+                    ((COUNT[$i]-=WIDTH_DATES))
+                done
+                echo "${SORTED[$i]}: $HASHES"
+                ((i++))
+                HASHES=""
+            done
+        else
+            i=0
+            while [ $i -lt $LEN_S ]; do
+                echo "${SORTED[$i]}: ${COUNT[$i]}"
+                ((i++))
+            done
+        fi
+    fi
+}
+
+count_place()
+{
+    SORTED+=($(echo "${COLLUMN[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+    SORTED=($(echo "${SORTED[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' '))
+
+    LEN_S=${#SORTED[@]}
+    i=0
+
+    while [ $i -lt $LEN_C ]; do
+        j=0
+        while [ $j -lt $LEN_S ]; do
+            if [ "${COLLUMN[$i]}" == "${SORTED[$j]}" ]; then
+                    index=${SORTED[$j]}
+                    ((ASOC_ARRAY[$index]++))
+            fi
+            let j++
+        done
+        let i++
+    done
+
+    if [ $PRINT ]; then
+        if [ "$ARG_S" == "true" ]; then
+            if [ "$WIDTH" ]; then
+                HIGHEST_I=${SORTED[0]}
+                i=1
+                while [ ${SORTED[$i]} ]; do
+                    if [[ ${ASOC_ARRAY[${SORTED[$i]}]} -gt ${ASOC_ARRAY[HIGHEST_I]} ]]; then
+                            HIGHEST_I=${SORTED[i]}
+                    fi
+                    ((i++))
+                done
+                ((WIDTH_LOCATIONS = ASOC_ARRAY[$HIGHEST_I] / WIDTH))
+                if [ $WIDTH_LOCATIONS -eq 0 ]; then
+                    WIDTH_LOCATIONS=1
+                fi
+            fi
+
+            i=0
+            while [ ${SORTED[$i]} ]; do
+                while [[ ${ASOC_ARRAY[${SORTED[$i]}]} -ge $WIDTH_LOCATIONS ]]; do
+                    HASHES+=\#
+                    index=${SORTED[$i]}
+                    ((ASOC_ARRAY[$index]-=WIDTH_LOCATIONS))
+                done
+                echo "${SORTED[$i]}: $HASHES"
+                ((i++))
+                HASHES=""
+            done
+        else
+            i=0
+            while [ $i -lt $LEN_S ]; do
+                index=${SORTED[$i]}
+                echo "${SORTED[$i]} : ${ASOC_ARRAY[${SORTED[$i]}]}"
+                let i++
+            done
+        fi
+    fi
+}
+
+choose_collumn()
+{
+    if [ "$ARG_G" == "M" ]; then
+        GEN="Z"
+    elif [ "$ARG_G" == "Z" ]; then
+        GEN="M"
+    elif [ "$ARG_G" == "" ]; then
+        GEN=""
+    else
+        echo "Wrong gender input. Use './corona -h' for help">&2
+        exit 1
+    fi
+
+    if [ "$ARG_B" == "" ]; then
+        ARG_B="9999-99-99"
+    fi
+
+    if [ "$ARG_A" == "" ]; then
+        ARG_A="0001-01-01"
+    fi
+        if [ "${FILE: -3}" == ".gz" ]; then
+            COLLUMN=($(gzip -dkc $FILE | awk -F "," '{if (($2 < "'$ARG_B'" || $2 == "datum") && $2 > "'$ARG_A'" && $4 != "'$GEN'") { print $'$1'}}'))
+        elif [ "${FILE: -4}" == ".bz2" ]; then
+            COLLUMN=($(bzip2 -dkc $FILE | awk -F "," '{if (($2 < "'$ARG_B'" || $2 == "datum") && $2 > "'$ARG_A'" && $4 != "'$GEN'") { print $'$1'}}'))
+        else
+            COLLUMN=($(awk -F "," '{if (($2 < "'$ARG_B'" || $2 == "datum") && $2 > "'$ARG_A'" && $4 != "'$GEN'") { print $'$1'}}' $FILE))
+        fi
+    unset COLLUMN[0]
+    ((LEN_C=${#COLLUMN[@]}+1))
+}
+
+HEADER=id,datum,vek,pohlavi,kraj_nuts_kod,okres_lau_kod,nakaza_v_zahranici,nakaza_zeme_csu_kod,reportovano_khs
+CMDPOS=1
+WIDTH_GENDER=100000
+WIDTH_AGE=10000
+WIDTH_DAILY=500
+WIDTH_MONTHLY=10000
+WIDTH_YEARLY=100000
+WIDTH_COUNTRIES=100
+WIDTH_DISTRICTS=1000
+WIDTH_REGIONS=10000
+
+while getopts :a:b:g:s:h OPT; do
+    case "$OPT" in
+        a)
+            ARG_A=$OPTARG
+        ;;
+        b)
+            ARG_B=$OPTARG
+        ;;
+        g)
+            ARG_G=$OPTARG
+        ;;
+        s)
+            ARG_S="true"
+            if [[ $OPTARG =~ ^[0-9]+$ ]]; then
+                WIDTH=$OPTARG
+            fi
+        ;;
+        h)
+            print_help
+        ;;
+        *)
+            echo "Incorrect usage, use corona -h for help"
+            exit 1
+        ;;
+    esac
+    ((CMDPOS++))
+    eval COMMAND="$"$CMDPOS""
+    if [ "$COMMAND" == "$OPTARG" ]; then
+        ((CMDPOS++))
+    fi
+done
+
+eval COMMAND="$"$CMDPOS""
+FILEPOS="$CMDPOS"
+
+declare -A ASOC_ARRAY
+
+case "$COMMAND" in 
+    infected | merge | gender | age | daily | monthly | yearly | countries | districts | regions)
+        ((FILEPOS++))
+    ;;
+    *)
+        COMMAND=merge
+    ;;
+esac
+
+eval FILE="$"$FILEPOS""
+
+if [ "$FILE" == "" ]
+then 
+    if test ! -t 0; then
+        FILE="/dev/stdin"
+        PRINT="true"
+        eval cmd_$COMMAND
+    else
+        echo "File: $FILE doesn't exist!">&2
+        exit 1;
+    fi
+else
+    while [ $FILE ]; do
+        if [ -e "$FILE" ]; then
+            ((FILEPOS++))
+            eval FILE_NEXT="$"$FILEPOS""
+            if [ "$FILE_NEXT" = "" ]; then
+                PRINT="true"
+            fi
+            eval cmd_$COMMAND
+            eval FILE="$"$FILEPOS""
+        else
+            echo "File: $FILE doesn't exist!">&2
+            exit 1
+        fi
+    done
+fi
