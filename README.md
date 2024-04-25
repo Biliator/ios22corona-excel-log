@@ -1,2 +1,2 @@
 # ios22corona-excel-log
-This is Bash script for first IOS project that logs user's files modifications
+This is a Bash script for the first IOS project that works with excel files.
